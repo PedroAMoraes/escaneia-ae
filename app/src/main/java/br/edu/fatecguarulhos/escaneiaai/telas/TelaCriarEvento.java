@@ -1,13 +1,16 @@
 package br.edu.fatecguarulhos.escaneiaai.telas;
 
-import android.app.DatePickerDialog;
-import android.app.TimePickerDialog;
 import android.content.DialogInterface;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputFilter;
+import android.text.InputType;
+import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.FrameLayout;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -16,11 +19,6 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
-
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.Locale;
 
 import br.edu.fatecguarulhos.escaneiaai.R;
 import br.edu.fatecguarulhos.escaneiaai.dao.EventoDao;
@@ -32,6 +30,7 @@ public class TelaCriarEvento extends AppCompatActivity {
     private Button btnCriar, btnVoltar;
     private EventoDao eventoDao;
     private FormularioEvento formEvento;
+    private String senha;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -67,8 +66,8 @@ public class TelaCriarEvento extends AppCompatActivity {
             public void onClick(View v) {
                 if(formEvento.validarDados()){
                     Evento e = criarEvento();
+                    mostrarTextBoxSenhaPadrao(e);
                     registrarEvento(e);
-                    mostrarSenha(e.getSenha());
                     limparCampos();
                 }
             }
@@ -92,7 +91,6 @@ public class TelaCriarEvento extends AppCompatActivity {
             }
         });
     }
-
     private Evento criarEvento(){
             Evento e = new Evento();
             e.setTitulo(edtTitulo.getText().toString().trim());
@@ -100,9 +98,10 @@ public class TelaCriarEvento extends AppCompatActivity {
             e.setDataInicio(dataInicio);
             e.setDataFim(edtDataFim.getText().toString());
             e.setMomentoInicio(formatarDataMomentoInicio(dataInicio));
-            String idHash = String.valueOf(getIdCelular().hashCode());
             e.setIdCriador(getIdCelular());
-            e.setSenha(idHash.substring(2,6));
+            String idHash = String.valueOf(getIdCelular().hashCode());
+            String senha = idHash.substring(2,6);
+            e.setSenha(senha);
             e.setLocal(edtLocal.getText().toString().trim());
             e.setDescricao(edtDescricao.getText().toString().trim());
         return e;
@@ -113,9 +112,10 @@ public class TelaCriarEvento extends AppCompatActivity {
             Toast.makeText(this, "Evento criado com sucesso",Toast.LENGTH_SHORT).show();
         }
     }
-    private void mostrarSenha(String senha){
+    private void mostrarTextBoxSenhaPadrao(Evento evento){
+        String senha = evento.getSenha();
         AlertDialog.Builder builder = new AlertDialog.Builder(this);
-        builder.setTitle("Senha: " + senha);
+        builder.setTitle("Senha padrão: " + senha);
         builder.setMessage("Use esta senha para alterar seus eventos a partir de outro dispositivo.");
         builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
             @Override
@@ -123,9 +123,67 @@ public class TelaCriarEvento extends AppCompatActivity {
                 dialog.dismiss();
             }
         });
+        builder.setNeutralButton("Alterar Senha", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                alterarSenha(evento);
+            }
+        });
         AlertDialog dialog = builder.create();
         dialog.show();
     }
+    private void alterarSenha(Evento evento){
+
+        final EditText inputSenha = new EditText(this);
+
+        inputSenha.setEms(4);
+        inputSenha.setInputType(InputType.TYPE_CLASS_NUMBER);
+        inputSenha.setFilters(new InputFilter[]{new InputFilter.LengthFilter(4)});
+        inputSenha.setTextAlignment(View.TEXT_ALIGNMENT_CENTER);
+
+        FrameLayout container = new FrameLayout(this);
+        FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+        );
+        params.gravity = Gravity.CENTER;
+        container.addView(inputSenha, params);
+
+        new AlertDialog.Builder(TelaCriarEvento.this)
+                .setTitle("Alterar senha")
+                .setMessage("Digite uma senha:")
+                .setView(container)
+                .setPositiveButton("Confirmar", (dialog, whichButton) -> {
+                    senha = inputSenha.getText().toString();
+                    mostrarTextBoxSenha(evento);
+                })
+                .setNegativeButton("Cancelar", (dialog, whichButton) -> {
+                    dialog.dismiss();
+                })
+                .show();
+    }
+    private void mostrarTextBoxSenha(Evento evento){
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Senha: " + senha);
+        builder.setMessage("Use esta senha para alterar seus eventos a partir de outro dispositivo.");
+        builder.setPositiveButton("OK", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                evento.setSenha(senha);
+                eventoDao.updateEvento(evento);
+                dialog.dismiss();
+            }
+        });
+        builder.setNeutralButton("Alterar Senha", new DialogInterface.OnClickListener() {
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                alterarSenha(evento);
+            }
+        });
+        AlertDialog dialog = builder.create();
+        dialog.show();
+    }
+
     // formatar a data de dia/mes/ano para ano/mes/dia, permitindo  organizar a ordem de inicio/fim
     private String formatarDataMomentoInicio(String dataInicio){
         String[] dataHora = dataInicio.split(" - ");
